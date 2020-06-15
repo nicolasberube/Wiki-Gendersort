@@ -5,12 +5,18 @@
 for Vincent Larivière, EBSI, University of Montreal
 
 Library to build the Wiki-Gendersort dataset, and to use it.
+This code is associated to the paper
+Wiki-Gendersort: Automatic gender detection using first names in Wikipedia
+https://osf.io/preprints/socarxiv/ezw7p/
 
 Use build_dataset() to build the dataset from scratch with Wikiedia searches.
 This should already been done on our own first name database and available
 in NamesOut.txt
 
-Use wiki_gendersort() to assign a gender based on the built dataset.
+Use wiki_gendersort() class to assign a gender based on the built dataset.
+    WG = wiki_gendersort()
+    WG.assign('Nicolas')
+    WG.file_assign('test_file.txt')
 """
 
 from os.path import isfile
