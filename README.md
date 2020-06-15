@@ -12,3 +12,9 @@ WG.file_assign('test_file.txt')
 ```
 
 You can also build your own database of names with ```build_dataset()```
+
+# Dependancies
+
+The code is depending on the following packages:
+- unidecode=1.1.1
+- wikipedia=1.4.0
