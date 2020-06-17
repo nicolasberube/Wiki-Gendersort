@@ -1,0 +1,4 @@
+
+# Ignores big files for comparison databases
+*
+!.gitignore
