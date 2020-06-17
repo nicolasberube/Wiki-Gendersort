@@ -318,31 +318,28 @@ def build_dataset(reboot=False):
     inputnames = cwd / 'Names.txt'
 
     # namestot: List of str names to attribute a gender to
-    namestot_raw = []
+    namestot_raw = ['']
     with open(inputnames, 'r') as namefile:
-        for n in namefile.readlines():
-            name = n[:-1]
-            if name:
-                namestot_raw.append(name)
+        namestot_raw = namefile.read().split('\n')
 
     print('Names sorting')
-    namestot = sorted(namestot_raw)
+    namestot = sorted(list(set(namestot_raw)))
     print('Log reading')
     datalog, datanames = lectdatalog(cwd)
-    if not datanames or reboot:
-        datanames = ['']
-        datalog = [['',
-                    'UNK',
-                    datetime.now(),
-                    '\nname is empty\n' + str(datetime.now()) + '\n = UNK']]
+    if index(datanames, '') == -1 or not datanames or reboot:
+        datanames += ['']
+        datalog += [['',
+                     'UNK',
+                     datetime.now(),
+                     '\nname is empty\n' + str(datetime.now()) + '\n = UNK']]
 
     print('Names treatment')
     # Keeping only names that are not in log file in namesfil
     namesfil = []
-
     for name in namestot:
         if index(datanames, name) == -1:
             namesfil.append(name)
+
     print('Fetching names data from Wikipedia')
     # tn = cpu_count()
     # Since the bottleneck is waiting for the wikipedia server to ping back,
@@ -355,10 +352,7 @@ def build_dataset(reboot=False):
                 for gender, log_data in pool.imap_unordered(name_to_gender,
                                                             namesfil):
                     pbar.update()
-                    print(gender)
-                    print(log_data)
                     filelog.write('\n\n'+log_data)
-                    print('DONE')
 
     print('Saving out file in NamesOut.txt')
     datalog, datanames = lectdatalog(cwd, backup=False)
@@ -369,134 +363,96 @@ def build_dataset(reboot=False):
     print('Done')
 
 
-def namecleanWoSall(prenom):
-    """Cleans a first name string and separates it into a list of strings,
-    ordered by priority, to analyze for Wiki-Gendersort.
-
-    This is a special modification to use on specific names format in the
-    Web of Science database. Normal names should use nameclean().
-    """
-
-    name = prenom
-    # Takes words in quotations and parenthesis as a penultimate priority
-    while (('(' in name) and (')' in name) or
-           ('"' in name and name.find('"') != name.rfind('"'))):
-        if (name.find('(') < name.rfind(')') and
-                ('(' in name) and (')' in name)):
-            name = (name[:name.find('(')] + ' ' +
-                    name[name.rfind(')')+1:] + ' ' +
-                    name[name.find('(')+1:name.rfind(')')])
-        elif ('"' in name and name.find('"') != name.rfind('"')):
-            name = (name[:name.find('"')] + ' ' +
-                    name[name.rfind('"')+1:] + ' ' +
-                    name[name.find('"')+1:name.rfind('"')])
-        else:
-            break
-    # Cleans strings of the list: Gets rid of strings without letters,
-    # separates fused strings and gets rid of periods at the end of strings
-    # while making the latter last in priority
-    namf = name.replace('-', ' ').replace('_', ' ').split()
-    j = 0
-    while j < len(namf):
-        if countalpha(namf[j]) == 0:
-            del namf[j]
-            j -= 1
-        j += 1
-    j = 0
-    while j < len(namf):
-        if len(namf[j]) >= 4:
-            if (namf[j][-1] == '.' and namf[j][-2].isupper() and
-                    namf[j][-3].islower()):
-                namf.insert(j+1, namf[j][-2:])
-                namf[j] = namf[j][:-2]
-        if namf[j][-1] == '.' and len(namf[j]) > 1:
-            namf.append(namf[j][:-1])
-            del namf[j]
-            j -= 1
-        j += 1
-
-    # Takes the strings that are not initials (if 1 letter or no vowels)
-    namf2 = []
-    for nam in namf:
-        if countalpha(nam) > 1 and countvowel(nam) > 0:
-            if len(nam) <= 1:
-                namf2.append(nam.upper())
-            else:
-                namf2.append(nam[0].upper()+nam[1:].lower())
-    return(namf2)
-
-
-def nameclean(prenom):
+def nameclean(first_name):
     """Cleans a first name string and separates it into a list of strings,
     ordered by priority, to analyze for Wiki-Gendersort.
     """
 
-    name = prenom
-    # Takes words in quotations and parenthesis as a penultimate priority
-    while (('(' in name) and (')' in name) or
-           ('"' in name and name.find('"') != name.rfind('"'))):
-        if (name.find('(') < name.rfind(')') and
-                ('(' in name) and (')' in name)):
-            name = (name[:name.find('(')] + ' ' +
-                    name[name.rfind(')')+1:] + ' ' +
-                    name[name.find('(')+1:name.rfind(')')])
-        elif ('"' in name and name.find('"') != name.rfind('"')):
-            name = (name[:name.find('"')] + ' ' +
-                    name[name.rfind('"')+1:] + ' ' +
-                    name[name.find('"')+1:name.rfind('"')])
+    name = first_name
+    # Puts words in quotations and parenthesis at the end of the string
+    while True:
+        left_i = -1
+        right_i = -1
+        if ('"' in name and name.find('"') != name.rfind('"')):
+            left_i = name.find('"')
+            right_i = left_i + 1 + name[left_i+1:].find('"')
+        if ('(' in name and ')' in name and
+                name.find('(') < name.rfind(')')):
+            left_i = name.find('(')
+            right_i = name.rfind(')')
+        if left_i != -1 and right_i != -1:
+            name = (name[:left_i] + ' ' +
+                    name[right_i+1:] + ' ' +
+                    name[left_i+1:right_i])
         else:
             break
 
-    # Cleans strings of the list: Gets rid of strings without letters,
-    # separates fused strings and gets rid of periods at the end of strings
-    # while making the latter last in priority (AliM. -> Ali M)
+    # Separates the string in sequences with anything not a letter or a
+    # period acting as delimiter
     namf = ''
     for i in name:
-        if countalpha(i) == 1 or i == '.':
+        if countalpha(i) >= 1 or i in {'.', '-'}:
             namf += i
         else:
             namf += ' '
-    namf = namf.split()
+    namf = [n for n in namf.split() if countalpha(n) != 0]
 
+    # Separates fused strings and gets rid of periods at the end of strings,
+    # separating them if capitalization suggests it (AliM. -> Ali M),
+    # and puts the strings that ended with a period as the end of the sequence
     j = 0
     while j < len(namf):
-        if countalpha(namf[j]) == 0:
-            del namf[j]
-            j -= 1
-        j += 1
-    j = 0
-    while j < len(namf):
-        if len(namf[j]) >= 4:
-            if (namf[j][-1] == '.' and namf[j][-2].isupper() and
-                    namf[j][-3].islower()):
-                namf.insert(j+1, namf[j][-2:])
-                namf[j] = namf[j][:-2]
-        if namf[j][-1] == '.' and len(namf[j]) > 1:
+        if (len(namf[j]) >= 4 and
+                namf[j][-1] == '.' and
+                namf[j][-2].isupper() and
+                namf[j][-3].islower()):
+            namf.insert(j+1, namf[j][-2:])
+            namf[j] = namf[j][:-2]
+        if namf[j][-1] == '.' and 4 > len(namf[j]) > 1:
             namf.append(namf[j][:-1])
             del namf[j]
             j -= 1
         j += 1
 
-    # Resplit the periods (A.Carl -> A Carl)
+    # Resplit any period that remains (A.Carl -> A Carl)
     j = 0
     while j < len(namf):
-        namsplit = namf[j].split('.')
-        if len(namsplit) > 1:
+        if '.' in namf[j]:
+            namsplit = namf[j].split('.')[::-1]
+            for n in namsplit:
+                namf.insert(j + 1, n)
             del namf[j]
-            for k in range(len(namsplit)):
-                namf.insert(j+k, namsplit[k])
             j += len(namsplit)-1
         j += 1
 
+    # Hyphens will duplicate the sequence and its components:
+    # "John-Paul" -> ["John-Paul", "John", "Paul"]
+    j = 0
+    while j < len(namf):
+        # namf[j] = '-'.join([n for n in namf[j].split('-') if n])
+        while namf[j] and namf[j][0] == '-':
+            namf[j] = namf[j][1:]
+        while namf[j] and namf[j][-1] == '-':
+            namf[j] = namf[j][:-1]
+        if '-' in namf[j]:
+            for n in namf[j].split('-')[::-1]:
+                namf.insert(j + 1, n)
+        j += 1
+
     # Takes the strings that are not initials (if 1 letter or no vowels)
+    # and duplicates any string not corresponding to unidecode characters
     namf2 = []
     for nam in namf:
         if countalpha(nam) > 1 and countvowel(nam) > 0:
             if len(nam) <= 1:
-                namf2.append(nam.upper())
+                n = nam.upper()
             else:
-                namf2.append(nam[0].upper()+nam[1:].lower())
-    return(namf2)
+                n = nam[0].upper()+nam[1:].lower()
+            namf2.append(n)
+            un = unidecode(n)
+            if n != un:
+                namf2.append(un)
+    return namf2
 
 
 class wiki_gendersort():
@@ -514,6 +470,7 @@ class wiki_gendersort():
             for line in filewg.readlines():
                 ls = line.replace('\n', '').split('\t')
                 name = '\t'.join(ls[0:-1]).upper()
+                name[1:] = name[1:].lower()
                 gend = ls[-1]
                 self.names_key[name] = gend
 
@@ -522,24 +479,19 @@ class wiki_gendersort():
         "Assign a gender to a first name (string)"
         self.unknown_set = []
         namelist = nameclean(name)
-        gend = 'NULL'
-        if len(namelist) == 0:
-            gend = 'INI'
-        j = 0
-        while (gend == 'UNK' or gend == 'NULL') and j < len(namelist):
-            if namelist[j].upper() in self.names_key:
-                gend = self.names_key[namelist[j].upper()]
-            elif unidecode(namelist[j].upper()) in self.names_key:
-                gend = self.names_key[unidecode(namelist[j].upper())]
+        gend = 'UNK'
+        for nam in namelist:
+            if nam in self.names_key:
+                new_gend = self.names_key[nam]
+                if new_gend != 'UNK':
+                    gend = new_gend
             else:
-                newname = namelist[j][0].upper() + namelist[j][1:].lower()
-                self.unknown_set.append(newname)
-                if namelist[j].upper() != unidecode(namelist[j].upper()):
-                    newname = (unidecode(namelist[j].upper())[0] +
-                               unidecode(namelist[j].upper())[1:].lower())
-                    self.unknown_set.append(newname)
-            j += 1
-        if name.upper() == 'NULL' or len(name) == 0:
+                self.unknown_set.append(nam)
+            if gend not in {'UNK', 'UNI'}:
+                break
+        if not namelist and name:
+            gend = 'INI'
+        if name.upper() != 'NULL':
             gend = 'UNK'
 
         return gend
