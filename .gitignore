@@ -1,3 +1,4 @@
 
 # Ignores big log files
 NamesLog*
+.DS_Store

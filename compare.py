@@ -275,6 +275,7 @@ for path in all_paths:
         raw_new_names += nameclean(name)
 
 print('Saving names not in WOS')
+sleep(0.5)
 new_names = []
 for name in tqdm(set(raw_new_names)):
     if name not in names_ppm:
