@@ -314,7 +314,7 @@ def table_compare(sort_path):
         compare_totals = [sum(tables[i][j][:-1])
                           for j in range(len(tables[i])-1)]
         print(' '*15 + '|' + center_string('Wiki-GenderSort',
-                                           len(col_ids[:-1])*10))
+                                           len(col_ids[:-1])*10-1) + '|')
         print(center_string(sort_name, 15) + '|' +
               '|'.join(col_ids[:-1]) + '|' +
               center_string('Total', 9) + '|')
@@ -337,7 +337,8 @@ def table_compare(sort_path):
               (100*sum(default_totals[:2])/sum(default_totals)))
         print(' '*4 +
               'Name tokens used for identification: %i (out of %i)' %
-              (default_n_names, len(WG.names_key)))
+              (default_n_names, len([v for v in WG.names_key.values()
+                                     if v not in {'INI', 'UNK'}])))
         print()
         print(center_string(sort_name, 15))
         print(' '*4 +
@@ -345,9 +346,63 @@ def table_compare(sort_path):
               (100*sum(compare_totals[:2])/sum(compare_totals)))
         print(' '*4 +
               'Name tokens used for identification: %i (out of %i)' %
-              (n_names[i], len(GS.names_key)))
+              (n_names[i], len([v for v in GS.names_key.values()
+                                if v not in {'INI', 'UNK'}])))
         print()
         print()
+
+
+def true_compare():
+    """Compare the wiki-gendersort dataset with the true label
+    dataset of "Comparison and benchmark of name-to-gender inference services"
+    (https://peerj.com/articles/cs-156/)
+
+    This function prints the results in the console
+    """
+    cwd = Path().parent.absolute()
+    path = cwd / 'data_compare' / 'all.csv'
+    namdata = []
+    with open(path) as file:
+        lin = file.readline()
+        for lin in file.read().split('\n'):
+            ls = lin[1:-1].split('","')
+            if lin == '':
+                continue
+            nam = ls[0]
+            gen = ls[4].upper()
+            if gen in {'M', 'F'}:
+                namdata.append([nam, gen])
+
+    WG = wiki_gendersort()
+    table = [[0, 0, 0], [0, 0, 0]]
+    gender_dict = {'M': 0,
+                   'F': 1,
+                   'UNI': 2,
+                   'UNK': 2,
+                   'INI': 2}
+    for name, gender in namdata:
+        true_gender = gender_dict[gender]
+        pred_gender = gender_dict[WG.assign(name)]
+        table[true_gender][pred_gender] += 1
+
+    col_ids = [center_string(g, 8) for g in [' M', ' F', ' UNK']]
+    print(' '*15 + '|' + center_string('Wiki-GenderSort',
+                                       len(col_ids)*9-1) + '|')
+    print(center_string('True Label', 15) + '|' +
+          '|'.join(col_ids) + '|')
+    for j, col_id in enumerate(col_ids[:-1]):
+        print(' '*7 + col_id + '|' +
+              '|'.join('  %4i  ' % val
+                       for val in table[j]) + '|')
+
+    [[mm, mf, mu], [fm, ff, fu]] = table
+    print()
+    print('errorCoded = %.3f' % ((fm+mf+mu+fu)/(mm+fm+mf+ff+mu+fu)))
+    print('errorCodedWithoutNA = %.3f' % ((fm+mf)/(mm+fm+mf+ff)))
+    print('naCoded = %.3f' % ((mu+fu)/(mm+fm+mf+ff+mu+fu)))
+    print('errorGenderBias = %.3f' % ((mf-fm)/(mm+fm+mf+ff)))
+    print()
+    print()
 
 
 if __name__ == '__main__':
@@ -362,5 +417,7 @@ if __name__ == '__main__':
     sort_paths = [cwd / 'data_compare' / 'USCensusOut.txt',
                   cwd / 'data_compare' / 'GenderCheckerOut.txt',
                   cwd / 'data_compare' / 'NamsorOut.txt',
-                  cwd / 'data_compare' / 'USCensusOut.txt']
+                  cwd / 'data_compare' / 'GendercOut.txt']
     table_compare(sort_paths)
+
+    true_compare()
