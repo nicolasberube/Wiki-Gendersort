@@ -192,8 +192,68 @@ def process_namsor():
     print('Done')
 
 
-def table_compare(sort_path,
-                  names_path=None):
+def import_wos():
+    """Imports dictionary of values with key=raw first name of the Web of
+    Science database and value=ppm (sums to 1M) of authorship of that first
+    name"""
+
+    print('Importing WOS authorship')
+    cwd = Path(__file__).parent.absolute()
+    names_ppm = {}
+    with open(cwd / 'data_compare' / 'raw' / 'WOS_authors.txt') as file:
+        for lin in tqdm(file.read().split('\n')):
+            ls = lin.replace('\ufeff', '').split('\t')
+            if len(ls) == 3:
+                name = ls[0]
+                occ = float(ls[-1])
+                if name not in names_ppm:
+                    names_ppm[name] = 0.
+                names_ppm[name] += occ
+    return names_ppm
+
+
+def process_names():
+    """Generates Names.txt file with as many first names as possible
+    from various raw data sources"""
+
+    names_ppm = import_wos()
+
+    print('Analyzing WOS names')
+    all_names = []
+    sleep(0.5)
+    for name in tqdm(names_ppm):
+        all_names += nameclean(name)
+
+    all_paths = [cwd / 'data_compare' / 'raw' / 'NamesOut_2017.txt',
+                 cwd / 'data_compare' / 'GendercOut.txt',
+                 cwd / 'data_compare' / 'GenderCheckerOut.txt',
+                 cwd / 'data_compare' / 'NamsorOut.txt',
+                 cwd / 'data_compare' / 'USCensusOut.txt']
+    for path in all_paths:
+        print(f'Importing names from {path.name}')
+        sleep(0.5)
+        with open(path) as file:
+            data = file.read().split('\n')
+        for d in tqdm(data):
+            name = '\t'.join(d.split('\t')[:-1])
+            all_names += nameclean(name)
+
+    print('Saving names in Names.txt')
+    with open(cwd / 'Names.txt', 'w') as file:
+        file.write('\n'.join(sorted(list(set(all_names)))))
+    print('Done')
+
+
+def center_string(string, length):
+    """Puts space before and after a string so it's centered
+    in a specified length"""
+    if length < len(string):
+        return string[:length]
+    n_add = length-len(string)
+    return ' '*(n_add//2) + string + ' '*(n_add//2 + n_add % 2)
+
+
+def table_compare(sort_path):
     """Compare a names sorting dataset to the wiki-gendersort dataset.
 
     This function prints the comparison results in the console
@@ -201,103 +261,106 @@ def table_compare(sort_path,
     Parameters
     ----------
     sort_path: str or Path
-        Path to the Out.txt file of the dataset
-
-    names_path: str or Path, optional
-        Path to the list of names to compare to.
-        Default is "./Names.txt"
+        Path to the Out.txt file of the dataset.
+        Can also be a list of paths.
     """
-    if names_path is None:
-        cwd = Path(__file__).parent.absolute()
-        names_path = cwd / 'Names.txt'
+    if not isinstance(sort_path, list):
+        sort_path = [sort_path]
+    sort_path = [Path(s) for s in sort_path]
 
-    sort_path = cwd / 'data_compare' / 'USCensusOut.txt'
-    sort_path = Path(sort_path)
+    names_ppm = import_wos()
+
     WG = wiki_gendersort()
-    CS = wiki_gendersort(sort_path)
-    with open(cwd / 'Names.txt') as name_file:
-        names = name_file.read().split('\n')
+    compare_GSs = [wiki_gendersort(sp) for sp in sort_path]
+    default_names = []
+    compare_names = [[] for _ in range(len(compare_GSs))]
 
+    print('Processing comparative data tables')
     gender_dict = {'M': 0,
                    'F': 1,
                    'UNI': 2,
                    'UNK': 3,
                    'INI': 4}
-    table = [[0]*5 for _ in range(5)]
-    for name in tqdm(names):
-        table[gender_dict[WG.assign(name)]][gender_dict[CS.assign(name)]] += 1
-
-
-#Processing WOS authorship and Names lists
-#Need to incorporate first name authorship proportions
-
-
-print('Importing WOS authorship')
-cwd = Path().parent.absolute()
-raw_names_ppm = {}
-with open(cwd / 'data_compare' / 'raw' / 'WOS_authors.txt') as file:
-    for lin in tqdm(file.read().split('\n')):
-        ls = lin.replace('\ufeff', '').split('\t')
-        if len(ls) == 3:
-            name = ls[0]
-            occ = float(ls[-1])
-            if name not in raw_names_ppm:
-                raw_names_ppm[name] = 0.
-            raw_names_ppm[name] += occ
-
-print('Cleaning and saving WOS names')
-sleep(0.5)
-names_ppm = {}
-for name, ppm in tqdm(raw_names_ppm.items()):
-    for n in nameclean(name):
-        if n not in names_ppm:
-            names_ppm[n] = 0.
-        names_ppm[n] += ppm
-
-names = sorted(list(names_ppm))
-with open(cwd / 'WOS_Names.txt', 'w') as file:
-    file.write('\n'.join(names))
-
-print('Analyzing names not in WOS')
-raw_new_names = []
-all_paths = [cwd / 'data_compare' / 'raw' / 'NamesOut_2017.txt',
-             cwd / 'data_compare' / 'GendercOut.txt',
-             cwd / 'data_compare' / 'GenderCheckerOut.txt',
-             cwd / 'data_compare' / 'NamsorOut.txt',
-             cwd / 'data_compare' / 'USCensusOut.txt']
-for path in all_paths:
-    print(f'Importing names from {path.name}')
+    tables = [[[0. for _ in range(len(gender_dict))]
+               for _ in range(len(gender_dict))]
+              for _ in range(len(compare_GSs))]
     sleep(0.5)
-    with open(path) as file:
-        data = file.read().split('\n')
-    for d in tqdm(data):
-        name = '\t'.join(d.split('\t')[:-1])
-        raw_new_names += nameclean(name)
+    for name, ppm in tqdm(names_ppm.items()):
+        default_gender = gender_dict[WG.assign(name)]
+        default_names.append(WG.matched_name)
+        for i, GS in enumerate(compare_GSs):
+            compare_gender = gender_dict[GS.assign(name)]
+            compare_names[i].append(GS.matched_name)
+            tables[i][compare_gender][default_gender] += ppm
 
-print('Saving names not in WOS')
-sleep(0.5)
-new_names = []
-for name in tqdm(set(raw_new_names)):
-    if name not in names_ppm:
-        new_names.append(name)
-with open(cwd / 'New_Names.txt', 'w') as file:
-    file.write('\n'.join(sorted(list(new_names))))
-with open(cwd / 'Names.txt', 'w') as file:
-    file.write('\n'.join(sorted(list(new_names)+list(names))))
-print('Done')
+    default_n_names = len(set(default_names))
+    n_names = [len(set(names)) for names in compare_names]
+
+    # Prints out results
+    for i, GS in enumerate(compare_GSs):
+        sort_name = sort_path[i].stem
+        if sort_name[-3:].upper() == 'OUT':
+            sort_name = sort_name[:-3]
+        sort_name = sort_name[:13]
+        col_ids = [center_string(g, 9)
+                   for g, rank in sorted(gender_dict.items(),
+                                         key=lambda x:x[1])]
+
+        # Print cross-results table
+        ini_ppm = tables[i][-1][-1]
+        default_totals = [sum(tables[i][j][k]
+                              for j in range(len(tables[i])-1))
+                          for k in range(len(tables[i])-1)]
+        compare_totals = [sum(tables[i][j][:-1])
+                          for j in range(len(tables[i])-1)]
+        print(' '*15 + '|' + center_string('Wiki-GenderSort',
+                                           len(col_ids[:-1])*10))
+        print(center_string(sort_name, 15) + '|' +
+              '|'.join(col_ids[:-1]) + '|' +
+              center_string('Total', 9) + '|')
+        for j, col_id in enumerate(col_ids[:-1]):
+            print(' '*6 + col_id + '|' +
+                  '|'.join(' %5.2f %% ' % (100*ppm/(10**6-ini_ppm))
+                           for ppm in tables[i][j][:-1]) + '|' +
+                  ' %5.2f %% ' % (100*compare_totals[j]/(10**6-ini_ppm)) + '|')
+        print(' '*6 + center_string('Total', 9) + '|' +
+              '|'.join(' %5.2f %% ' % (100*ppm/(10**6-ini_ppm))
+                       for ppm in default_totals) + '|' +
+              '%6.2f %% ' % 100 + '|')
+        print('Proportion of initials: %.2f %%' % (ini_ppm/10000))
+        print()
+
+        # Prints global data
+        print('Wiki-GenderSort')
+        print(' '*4 +
+              'Identified authors : %.2f %%' %
+              (100*sum(default_totals[:2])/sum(default_totals)))
+        print(' '*4 +
+              'Name tokens used for identification: %i (out of %i)' %
+              (default_n_names, len(WG.names_key)))
+        print()
+        print(center_string(sort_name, 15))
+        print(' '*4 +
+              'Identified authors : %.2f %%' %
+              (100*sum(compare_totals[:2])/sum(compare_totals)))
+        print(' '*4 +
+              'Name tokens used for identification: %i (out of %i)' %
+              (n_names[i], len(GS.names_key)))
+        print()
+        print()
 
 
 if __name__ == '__main__':
+    pass
     # process_genderc()
     # process_uscensus()
     # process_genderchecker()
     # process_namsor()
+    # process_names()
 
     cwd = Path(__file__).parent.absolute()
-    #table_compare(cwd / 'data_compare' / 'GendercOut.txt')
-    #GC = wiki_gendersort(cwd / 'data_compare' / 'GenderCheckerOut.txt')
-    #US = wiki_gendersort(cwd / 'data_compare' / 'USCensusOut.txt')
-    #NS = wiki_gendersort(cwd / 'data_compare' / 'NamsorOut.txt')
-    # table_compare(cwd / 'data_compare' / 'USCensusOut.txt')
-
-
+    sort_paths = [cwd / 'data_compare' / 'USCensusOut.txt',
+                  cwd / 'data_compare' / 'GenderCheckerOut.txt',
+                  cwd / 'data_compare' / 'NamsorOut.txt',
+                  cwd / 'data_compare' / 'USCensusOut.txt']
+    table_compare(sort_paths)

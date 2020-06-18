@@ -157,14 +157,9 @@ def name_to_gender(name):
     # genh: # of pages refering to a man. genf: woman.
     genh = 0
     genf = 0
-    # Only the first part of the name and puts proper uppercase/lowercase
-    namesplit = name.replace('-', ' ').split()
-    if len(namesplit[0]) == 1:
-        nam = namesplit[0].upper()
-    else:
-        nam = namesplit[0][0].upper() + namesplit[0][1:].lower()
+    nam = name
     # Search parameters if previous search was inconclusive
-    # 0: Presenc of a page FIRST_NAME (given name)
+    # 0: Presence of a page FIRST_NAME (given name)
     # 1: FIRST_NAME LAST_NAME
     # 2: Analysis of page listing (not their content)
     # 3: LAST_NAME FIRST_NAME
@@ -470,7 +465,8 @@ class wiki_gendersort():
             for line in filewg.readlines():
                 ls = line.replace('\n', '').split('\t')
                 name = '\t'.join(ls[0:-1]).upper()
-                name[1:] = name[1:].lower()
+                if name[0]:
+                    name = name[0] + name[1:].lower()
                 gend = ls[-1]
                 self.names_key[name] = gend
 
@@ -478,20 +474,24 @@ class wiki_gendersort():
                name):
         "Assign a gender to a first name (string)"
         self.unknown_set = []
+        self.matched_name = None
         namelist = nameclean(name)
         gend = 'UNK'
         for nam in namelist:
             if nam in self.names_key:
                 new_gend = self.names_key[nam]
                 if new_gend != 'UNK':
+                    if not self.matched_name:
+                        self.matched_name = nam
                     gend = new_gend
             else:
                 self.unknown_set.append(nam)
             if gend not in {'UNK', 'UNI'}:
+                self.matched_name = nam
                 break
         if not namelist and name:
             gend = 'INI'
-        if name.upper() != 'NULL':
+        if name.upper() == 'NULL':
             gend = 'UNK'
 
         return gend
@@ -559,7 +559,7 @@ class wiki_gendersort():
 
 
 if __name__ == '__main__':
-    # build_dataset()
+    build_dataset()
 
     # WG = wiki_gendersort()
     # WG.assign('Nicolas')
