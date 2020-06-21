@@ -452,14 +452,16 @@ def nameclean(first_name):
 
 class wiki_gendersort():
     def __init__(self,
-                 input_path=None):
+                 input_path=None,
+                 verbose=False):
         if input_path is None:
             cwd = Path(__file__).parent.absolute()
             self.input_path = cwd / 'NamesOut.txt'
         else:
             self.input_path = Path(input_path)
 
-        print('Importing names database from ' + self.input_path.name)
+        if verbose:
+            print('Importing names database from ' + self.input_path.name)
         self.names_key = {}
         with open(self.input_path, 'r', encoding='utf-8') as filewg:
             for line in filewg.readlines():
