@@ -423,6 +423,8 @@ def namsor_compare():
     namsor_path = cwd / 'data_compare' / 'raw' / 'Namsor_1M.txt'
 
     default_names = []
+    all_names = []
+    all_tokens = []
     gender_dict = {'M': 0,
                    'F': 1,
                    'UNI': 2,
@@ -438,6 +440,8 @@ def namsor_compare():
         for lin in tqdm(raw_file.readlines(), total=1000000):
             ls = lin.replace('\n', '').split('\t')
             name = ls[0]
+            all_names.append(name)
+            all_tokens += nameclean(name)
             ppm = float(ls[2]) - cumul_ppm
             cumul_ppm = float(ls[2])
             default_gender = WG.assign(name)
@@ -510,6 +514,10 @@ def namsor_compare():
           'Identified authors : %.2f %%' %
           (100*sum(compare_totals[:2])/sum(compare_totals)))
     print()
+    print('Total unique first name in top 1M WoS: %i' % len(set(all_names)))
+    print('Total unique first name tokens in top 1M WoS: %i' %
+          len(set(all_tokens)))
+    print()
     print()
 
 
@@ -560,10 +568,10 @@ def true_compare():
 
     [[mm, mf, mu], [fm, ff, fu]] = table
     print()
-    print('errorCoded = %.3f' % ((fm+mf+mu+fu)/(mm+fm+mf+ff+mu+fu)))
-    print('errorCodedWithoutNA = %.3f' % ((fm+mf)/(mm+fm+mf+ff)))
-    print('naCoded = %.3f' % ((mu+fu)/(mm+fm+mf+ff+mu+fu)))
-    print('errorGenderBias = %.3f' % ((mf-fm)/(mm+fm+mf+ff)))
+    print('errorCoded = %.4f' % ((fm+mf+mu+fu)/(mm+fm+mf+ff+mu+fu)))
+    print('errorCodedWithoutNA = %.4f' % ((fm+mf)/(mm+fm+mf+ff)))
+    print('naCoded = %.4f' % ((mu+fu)/(mm+fm+mf+ff+mu+fu)))
+    print('errorGenderBias = %.4f' % ((mf-fm)/(mm+fm+mf+ff)))
     print()
     print()
 
@@ -573,7 +581,6 @@ if __name__ == '__main__':
     # process_genderc()
     # process_uscensus()
     # process_genderchecker()
-    # process_namsor()
     # process_names()
 
     cwd = Path(__file__).parent.absolute()

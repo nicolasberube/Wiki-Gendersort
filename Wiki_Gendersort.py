@@ -561,7 +561,7 @@ class wiki_gendersort():
 
 
 if __name__ == '__main__':
-    build_dataset()
+    # build_dataset()
 
     # WG = wiki_gendersort()
     # WG.assign('Nicolas')
